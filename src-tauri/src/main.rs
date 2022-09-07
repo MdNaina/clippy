@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{Manager, State, ClipboardManager};
+use tauri::{Manager, State, ClipboardManager, WindowEvent, CloseRequestApi};
 use tokio::time::sleep;
 
 
@@ -22,11 +22,17 @@ impl Default for MyState {
 impl MyState {
     fn update(&mut self, action: &str, payload: String) {
         if action == "push" {
-            let mut new_list  = self.clip_list.clone();
-            new_list.extend_from_slice(&[payload]);
-            // new_list.reverse();
-            self.clip_list = new_list;
+            if self.clip_list.contains(&payload) {
+                let old_value = payload.clone();
+                self.clip_list.remove(self.clip_list.iter().position(|x| *x == old_value).expect("not found"));
+            }
+            self.clip_list.push(payload)
         }
+        if self.clip_list.len() > 20 {
+            let leng = self.clip_list.len();
+            self.clip_list = self.clip_list[leng - 20 .. leng].to_vec()
+        }
+       
     }
 }
 
@@ -41,20 +47,13 @@ fn get_clip_list(state: State<'_, AppState>) -> Vec<String> {
   state.store.lock().unwrap().clip_list.clone()
 }
 
-#[tauri::command]
-fn set_into_clipboard(value: String, app: tauri::AppHandle){
-    let app_handler = app.app_handle();
-    app_handler.clipboard_manager().write_text(value).unwrap();
-}
-
-
 fn main() {
     let state = AppState {
         store: Arc::new(Mutex::new(MyState::default()))
     };
     tauri::Builder::default()
         .manage(state)
-        .invoke_handler(tauri::generate_handler![get_clip_list, set_into_clipboard])
+        .invoke_handler(tauri::generate_handler![get_clip_list])
         .setup(|app| {
             let app_handler = app.app_handle();
             tauri::async_runtime::spawn(async move {
@@ -78,6 +77,15 @@ fn main() {
 
             Ok(())
         })
+        .on_window_event(|event| {
+            let window_event = event.window();
+            match event.event() {
+                WindowEvent::CloseRequested { api , .. } => {
+                    api.prevent_close();
+                    window_event.minimize().unwrap();
+                },
+                _ => (),
+            }})
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
