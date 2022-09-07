@@ -1,10 +1,11 @@
 <script lang="ts">
-    import { invoke } from "@tauri-apps/api"
+    import { clipboard } from "@tauri-apps/api"
 
     export let text: string;
 
     async function copyToClipboard() {
-        await invoke("set_into_clipboard", {value: text})
+        let res = await clipboard.writeText(text)
+        console.log(res)
     }
 </script>
 
