@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{Manager, State, ClipboardManager, WindowEvent, CloseRequestApi};
+use tauri::{Manager, State, ClipboardManager, WindowEvent};
 use tokio::time::sleep;
 
 
@@ -47,12 +47,16 @@ fn get_clip_list(state: State<'_, AppState>) -> Vec<String> {
   state.store.lock().unwrap().clip_list.clone()
 }
 
+mod system_tray;
+
 fn main() {
     let state = AppState {
         store: Arc::new(Mutex::new(MyState::default()))
     };
     tauri::Builder::default()
         .manage(state)
+        .system_tray(system_tray::init_system_tray())
+        .on_system_tray_event(system_tray::handle_system_tray)
         .invoke_handler(tauri::generate_handler![get_clip_list])
         .setup(|app| {
             let app_handler = app.app_handle();
@@ -82,7 +86,7 @@ fn main() {
             match event.event() {
                 WindowEvent::CloseRequested { api , .. } => {
                     api.prevent_close();
-                    window_event.minimize().unwrap();
+                    window_event.hide().unwrap();
                 },
                 _ => (),
             }})
