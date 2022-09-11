@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{Manager, State, ClipboardManager, WindowEvent};
+use tauri::{Manager, State, ClipboardManager, WindowEvent, GlobalShortcutManager};
 use tokio::time::sleep;
 
 
@@ -60,9 +60,19 @@ fn main() {
         .invoke_handler(tauri::generate_handler![get_clip_list])
         .setup(|app| {
             let app_handler = app.app_handle();
+            let app_window = app.get_window("main").unwrap();
             tauri::async_runtime::spawn(async move {
                 sleep(Duration::from_secs(1)).await;
                 let app_handler = app_handler.clone();
+                let mut gsm = app_handler.global_shortcut_manager().clone();
+                gsm.register("Super+Shift+V", move || {
+                    println!("shortcut is triggered");
+                    if app_window.is_visible().unwrap() {
+                        app_window.hide().unwrap();
+                    }else {
+                        app_window.show().unwrap();
+                    };
+                }).unwrap();
                 loop {
                     let state: State<AppState> = app_handler.state();
                     let empty_string = String::from("");
