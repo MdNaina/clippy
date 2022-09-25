@@ -68,7 +68,7 @@ fn main() {
                     let empty_string = String::from("");
                     let empty_list = Vec::from([empty_string.clone()]);
                     let clipboard = app_handler.clipboard_manager();
-                    let clip_text = clipboard.to_owned().read_text().unwrap().unwrap();
+                    let clip_text = clipboard.to_owned().read_text().unwrap_or_else(|_| -> Option<String> {Some("".to_string())}).unwrap();
                     let store =state.store.clone();
                     let list = store.lock().unwrap().clip_list.clone();
                     let list = if list.len() == 0 { empty_list } else { list };
