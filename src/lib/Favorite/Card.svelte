@@ -1,31 +1,22 @@
 <script lang="ts">
-    import { clipboard } from "@tauri-apps/api";
-    import { event } from "@tauri-apps/api";
+    import { clipboard, event } from "@tauri-apps/api";
     import { invoke } from "@tauri-apps/api/tauri";
     import optionIcon from "../../assets/options.svg";
 
     export let text: string;
+    export let id: number;
 
     let optionStatus = false;
 
-    const addToFavorite = async(e: MouseEvent) => {
-        await invoke("add_to_favorite", {value: text})
-        await event.emit("clipboard-update");
-        toggleOptionOff(e);
-    };
-
-    const removeFromClipboard = async(e: MouseEvent) => {
-        try {
-            await invoke("remove_from_clip", {value: text})
-            await event.emit("clipboard-update");
-            toggleOptionOff(e);
-        }catch(e){
-            console.log(e)
-        }
+    const removeFromFavorite = async(e: MouseEvent) => {
+        await invoke("remove_from_favorite", { id })
+        await event.emit("favorite-update");
+        toggleOptionOff(e)
     };
 
     async function copyToClipboard() {
         let res = await clipboard.writeText(text);
+        console.log(res);
     }
 
     function toggleOptionOn(e: MouseEvent) {
@@ -62,11 +53,7 @@
             class="w-28 h-12 flex flex-col items-start justify-center bg-white p-1 rounded-md"
         >
             <button
-                class="w-full whitespace-nowrap text-start border-b"
-                on:click|stopPropagation={addToFavorite}>Add to Star</button
-            >
-            <button
-                on:click|stopPropagation={removeFromClipboard}
+                on:click|stopPropagation={removeFromFavorite}
                 class="w-full whitespace-nowrap text-start ">Remove</button
             >
         </div>

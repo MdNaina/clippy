@@ -12,9 +12,9 @@
             link: "clipboard",
         },
         {
-            title: "Stared",
+            title: "Favorite",
             icon: starIcon,
-            link: "star",
+            link: "favorite",
         },
         {
             title: "Keys",
