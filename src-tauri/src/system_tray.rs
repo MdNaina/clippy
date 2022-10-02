@@ -12,6 +12,11 @@ pub fn init_system_tray() -> SystemTray {
 
 pub fn handle_system_tray(app: &AppHandle, event: SystemTrayEvent) {
     match event {
+        // SystemTrayEvent::DoubleClick { position: _, size: _, .. } => {
+        //     println!("system tray received a left click");
+        //     let window = app.get_window("main").unwrap();
+        //     window.show().unwrap()
+        // }
         SystemTrayEvent::MenuItemClick { id, .. } => {
             match id.as_str() {
                 "hide" => {

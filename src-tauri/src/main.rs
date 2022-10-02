@@ -3,19 +3,27 @@
     windows_subsystem = "windows"
 )]
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{Manager, State, ClipboardManager, WindowEvent, GlobalShortcutManager};
+use tauri::{Manager, State, ClipboardManager, WindowEvent};
 use tokio::time::sleep;
 
+use rusqlite::Connection;
+
+mod model;
+mod logic;
+
+use logic::favorite::{get_fav_list, add_to_favorite, remove_from_favorite};
 
 struct MyState {
     clip_list: Vec<String>,
+    conn: Option<Connection>
 }
 
 impl Default for MyState {
     fn default() -> Self {
-        Self { clip_list: Vec::new() }
+        Self { clip_list: Vec::new(), conn: None }
     }
 }
 
@@ -24,7 +32,7 @@ impl MyState {
         if action == "push" {
             if self.clip_list.contains(&payload) {
                 let old_value = payload.clone();
-                self.clip_list.remove(self.clip_list.iter().position(|x| *x == old_value).expect("not found"));
+                self.remove_item_in_list(old_value);
             }
             self.clip_list.push(payload)
         }
@@ -34,10 +42,23 @@ impl MyState {
         }
        
     }
+    fn remove_item_in_list(&mut self, value: String){
+        self.clip_list.remove(self.clip_list.iter().position(|x| *x == value).expect("not found"));
+    }
+
+    fn initialize_db(&mut self, path: PathBuf) {
+        self.conn = Some(Connection::open(path.to_str().unwrap().to_owned()+ "/store.db").unwrap());
+        self.conn.as_ref().unwrap().execute(r#"
+        CREATE TABLE IF NOT EXISTS favorite (
+            id INTEGER PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        "#, []).unwrap();
+    }
 }
 
-struct AppState {
-    store: Arc<Mutex<MyState>>
+pub struct AppState {
+    store: Arc<Mutex<MyState>>,
 }
 
 // invoke commands
@@ -47,38 +68,48 @@ fn get_clip_list(state: State<'_, AppState>) -> Vec<String> {
   state.store.lock().unwrap().clip_list.clone()
 }
 
+#[tauri::command]
+fn remove_from_clip(state: State<'_, AppState>, value: String) {
+  state.store.lock().unwrap().remove_item_in_list(value)
+}
+
 mod system_tray;
 
 fn main() {
     let state = AppState {
-        store: Arc::new(Mutex::new(MyState::default()))
+        store: Arc::new(Mutex::new(MyState::default())),
     };
     tauri::Builder::default()
         .manage(state)
         .system_tray(system_tray::init_system_tray())
         .on_system_tray_event(system_tray::handle_system_tray)
-        .invoke_handler(tauri::generate_handler![get_clip_list])
+        .invoke_handler(tauri::generate_handler![
+            // clipboard
+            get_clip_list, 
+            remove_from_clip,
+            // favorite
+            get_fav_list, 
+            add_to_favorite,
+            remove_from_favorite
+        ])
         .setup(|app| {
             let app_handler = app.app_handle();
-            let app_window = app.get_window("main").unwrap();
+            let path = app_handler.path_resolver().app_dir().to_owned();
+            let path = path.unwrap();
+            if !path.is_dir() {
+                std::fs::create_dir_all(path.clone()).unwrap();
+            }
+            let state: State<AppState> =  app_handler.state();
+            state.store.lock().unwrap().initialize_db(path);
             tauri::async_runtime::spawn(async move {
                 sleep(Duration::from_secs(1)).await;
                 let app_handler = app_handler.clone();
-                let mut gsm = app_handler.global_shortcut_manager().clone();
-                gsm.register("Super+Shift+V", move || {
-                    println!("shortcut is triggered");
-                    if app_window.is_visible().unwrap() {
-                        app_window.hide().unwrap();
-                    }else {
-                        app_window.show().unwrap();
-                    };
-                }).unwrap();
                 loop {
                     let state: State<AppState> = app_handler.state();
                     let empty_string = String::from("");
                     let empty_list = Vec::from([empty_string.clone()]);
                     let clipboard = app_handler.clipboard_manager();
-                    let clip_text = clipboard.to_owned().read_text().unwrap().unwrap();
+                    let clip_text = clipboard.to_owned().read_text().unwrap_or_else(|_| Some("".to_string())).unwrap();
                     let store =state.store.clone();
                     let list = store.lock().unwrap().clip_list.clone();
                     let list = if list.len() == 0 { empty_list } else { list };
