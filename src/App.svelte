@@ -3,6 +3,7 @@ import Clipboard from "./lib/Clipboard.svelte";
 import Header from "./lib/Header.svelte";
 import Favorite from "./lib/Favorite.svelte";
 
+
 let currentTab = "clipboard"
 
 let changeTab = (link: string) => {
