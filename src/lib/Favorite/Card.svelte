@@ -2,6 +2,7 @@
     import { clipboard, event } from "@tauri-apps/api";
     import { invoke } from "@tauri-apps/api/tauri";
     import optionIcon from "../../assets/options.svg";
+    import { copyToClipboard } from "../utils/function"
 
     export let text: string;
     export let id: number;
@@ -13,11 +14,6 @@
         await event.emit("favorite-update");
         toggleOptionOff(e)
     };
-
-    async function copyToClipboard() {
-        let res = await clipboard.writeText(text);
-        console.log(res);
-    }
 
     function toggleOptionOn(e: MouseEvent) {
         optionStatus = !optionStatus;
@@ -31,7 +27,7 @@
 
 <div
     class="relative h-[5rem] w-full mb-1 bg-gray-300 text-sm p-2 rounded-md cursor-pointer"
-    on:click|stopPropagation={copyToClipboard}
+    on:click|stopPropagation={() => copyToClipboard(text)}
 >
     <p>{text.slice(0, 130)}</p>
     <div class="p-2 px-3 absolute top-4 right-2" on:click|stopPropagation={toggleOptionOn}>

@@ -18,12 +18,13 @@ use logic::favorite::{get_fav_list, add_to_favorite, remove_from_favorite};
 
 struct MyState {
     clip_list: Vec<String>,
+    system_clip: Option<String>,
     conn: Option<Connection>
 }
 
 impl Default for MyState {
     fn default() -> Self {
-        Self { clip_list: Vec::new(), conn: None }
+        Self { clip_list: Vec::new(), system_clip: None, conn: None }
     }
 }
 
@@ -69,6 +70,12 @@ fn get_clip_list(state: State<'_, AppState>) -> Vec<String> {
 }
 
 #[tauri::command]
+fn copy_text(state: State<'_, AppState>, app_handler: tauri::AppHandle, value: String) {
+    state.store.lock().unwrap().system_clip = Some(value.clone());
+    app_handler.clipboard_manager().write_text(value);
+}
+
+#[tauri::command]
 fn remove_from_clip(state: State<'_, AppState>, value: String) {
   state.store.lock().unwrap().remove_item_in_list(value)
 }
@@ -87,6 +94,7 @@ fn main() {
             // clipboard
             get_clip_list, 
             remove_from_clip,
+            copy_text,
             // favorite
             get_fav_list, 
             add_to_favorite,
@@ -109,14 +117,16 @@ fn main() {
                     let empty_string = String::from("");
                     let empty_list = Vec::from([empty_string.clone()]);
                     let clipboard = app_handler.clipboard_manager();
-                    let clip_text = clipboard.to_owned().read_text().unwrap_or_else(|_| Some("".to_string())).unwrap();
+                    let clip_text = clipboard.to_owned().read_text().unwrap_or_else(|_| Some("".to_string())).unwrap_or_default();
                     let store =state.store.clone();
                     let list = store.lock().unwrap().clip_list.clone();
+                    let system_clip = store.lock().unwrap().system_clip.clone();
                     let list = if list.len() == 0 { empty_list } else { list };
-                    if list.last().unwrap() != &clip_text {
-                        store.lock().unwrap().update("push", clip_text);
-                        app_handler.emit_all("clipboard-update", "ping").unwrap()
-                    }
+                    let last_clip = list.last().unwrap().to_owned();
+                    match system_clip {
+                        Some(val) => if val != clip_text { push_to_clipboard(last_clip, clip_text, store, &app_handler)},
+                        None => push_to_clipboard(last_clip, clip_text, store, &app_handler),
+                    };
                 };
             });
 
@@ -133,4 +143,11 @@ fn main() {
             }})
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn push_to_clipboard(last_clip: String, clip_text: String, store: Arc<Mutex<MyState>>, app_handler: &tauri::AppHandle) {
+    if last_clip != clip_text && clip_text.trim().len() != 0 {
+        store.lock().unwrap().update("push", clip_text.to_owned());
+        app_handler.emit_all("clipboard-update", "ping").unwrap();
+    };
 }
