@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{Manager, State, ClipboardManager, WindowEvent};
+use tauri::{Manager, State, ClipboardManager, WindowEvent, GlobalShortcutManager};
 use tokio::time::sleep;
 
 use rusqlite::Connection;
@@ -73,6 +73,7 @@ fn get_clip_list(state: State<'_, AppState>) -> Vec<String> {
 fn copy_text(state: State<'_, AppState>, app_handler: tauri::AppHandle, value: String) {
     state.store.lock().unwrap().system_clip = Some(value.clone());
     app_handler.clipboard_manager().write_text(value);
+    app_handler.get_window("main").unwrap().hide().unwrap();
 }
 
 #[tauri::command]
@@ -107,6 +108,13 @@ fn main() {
             if !path.is_dir() {
                 std::fs::create_dir_all(path.clone()).unwrap();
             }
+            // register hotkey
+            let mut global_shortcut_manager = app_handler.global_shortcut_manager();
+            let app_handler_clone = app_handler.clone();
+            // use AltOrOption+Shift+V to show the window
+            global_shortcut_manager.register("Alt+Shift+V", move || {
+                app_handler_clone.get_window("main").unwrap().set_focus().unwrap();
+            }).expect("Failed to register hotkey");
             let state: State<AppState> =  app_handler.state();
             state.store.lock().unwrap().initialize_db(path);
             tauri::async_runtime::spawn(async move {
